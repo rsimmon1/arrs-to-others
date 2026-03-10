@@ -49,6 +49,13 @@ done
 
 # ==================== Functions ====================
 
+# Create a credentials file for CIFS mounts (avoids exposing credentials in process listings)
+CREDS_FILE=$(mktemp)
+chmod 600 "$CREDS_FILE"
+printf 'username=%s\npassword=%s\n' "$SYNC_USERNAME" "$SYNC_PASSWORD" > "$CREDS_FILE"
+cleanup_creds() { rm -f "$CREDS_FILE"; }
+trap cleanup_creds EXIT
+
 # Function to check and mount a CIFS share if not already mounted
 mount_if_needed() {
     local share=$1
@@ -65,7 +72,7 @@ mount_if_needed() {
         echo "$mountpoint is already mounted."
     else
         echo "Attempting to mount $share to $mountpoint"
-        if ! mount.cifs "$share" "$mountpoint" -o "user=$SYNC_USERNAME,password=$SYNC_PASSWORD,vers=2.1"; then
+        if ! mount.cifs "$share" "$mountpoint" -o "credentials=$CREDS_FILE,vers=2.1"; then
             echo "Failed to mount $share on $mountpoint"
             dmesg | tail -10
         fi
@@ -160,10 +167,13 @@ while true; do
                     echo
                     echo "  *************** ${backup_dir} to ${dest_dir} ***************"
                     ls "$backup_dir" || true
-                    rsync -r -ah --remove-source-files -P "$backup_dir"/ "$dest_dir" || true
-                    find "$backup_dir" -mindepth 1 -type d -empty -delete 2>/dev/null || true
-                    echo "${START_TIME}" > "${dest_dir}/${TRIGGER_FILE}"
-                    echo "  *************** ${backup_dir} to ${dest_dir} Done ***************"
+                    if rsync -r -ah --remove-source-files -P "$backup_dir"/ "$dest_dir"; then
+                        find "$backup_dir" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+                        echo "${START_TIME}" > "${dest_dir}/${TRIGGER_FILE}"
+                        echo "  *************** ${backup_dir} to ${dest_dir} Done ***************"
+                    else
+                        echo "  WARNING: rsync failed for ${backup_dir} to ${dest_dir}, backup files preserved"
+                    fi
                 fi
             done
         done

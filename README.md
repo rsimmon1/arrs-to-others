@@ -73,7 +73,7 @@ docker build -t arrs-to-others .
 ```bash
 docker run -d \
   --name arrs-to-others \
-  --privileged \
+  --cap-add SYS_ADMIN \
   -e SYNC_USERNAME=myuser \
   -e SYNC_PASSWORD=mypassword \
   -e ARRS_LOCATION=/srv/media/ \
@@ -85,4 +85,4 @@ docker run -d \
   arrs-to-others
 ```
 
-> **Note:** The container requires `--privileged` or appropriate capabilities (`SYS_ADMIN`, `DAC_READ_SEARCH`) to mount CIFS shares.
+> **Note:** The container requires `--cap-add SYS_ADMIN` (or `--privileged`) to mount CIFS shares.
